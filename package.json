@@ -1,0 +1,15 @@
+{
+  "name": "itch-wp-mcp",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Local MCP server for safely querying and editing WordPress content through the REST API.",
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.21.1",
+    "dotenv": "^17.2.3",
+    "zod": "^4.1.12"
+  }
+}
