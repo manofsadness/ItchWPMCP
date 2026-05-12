@@ -16,6 +16,8 @@ const allowProductionWrites = process.env.WP_ALLOW_PRODUCTION_WRITES === 'true';
 const pageStatusSchema = z.enum(['publish', 'draft', 'pending', 'private', 'future']);
 const contentStatusSchema = z.enum(['publish', 'draft', 'pending', 'private', 'future']);
 const httpMethodSchema = z.enum(['GET', 'POST', 'PUT', 'PATCH', 'DELETE']);
+const wpContentTypeSchema = z.enum(['page', 'post']);
+const elementorDataSchema = z.union([z.string(), z.array(z.any()), z.record(z.string(), z.any())]);
 
 if (!baseUrl || !username || !appPassword) {
   throw new Error('Missing WP_BASE_URL, WP_USERNAME, or WP_APP_PASSWORD in tools/wordpress-mcp/.env');
@@ -340,6 +342,109 @@ server.tool(
     });
 
     return jsonText(formatPageSummary(page));
+  }
+);
+
+server.tool(
+  'wordpress_get_elementor_meta',
+  'Get Elementor-related meta and template fields for a WordPress page or post.',
+  {
+    id: z.number().int().positive(),
+    postType: wpContentTypeSchema.default('page'),
+  },
+  async ({ id, postType }) => {
+    const item = await wpFetch(`/wp-json/wp/v2/${restBaseForContentType(postType)}/${id}?context=edit`);
+
+    return jsonText({
+      id: item.id,
+      type: item.type,
+      status: item.status,
+      title: renderText(item.title),
+      slug: item.slug,
+      link: item.link,
+      template: item.template ?? '',
+      meta: pickElementorMeta(item.meta ?? {}),
+    });
+  }
+);
+
+server.tool(
+  'wordpress_update_elementor_meta',
+  'Update Elementor post meta for a WordPress page or post. Supports _elementor_data, _elementor_edit_mode, _elementor_template_type, _elementor_version, _elementor_page_settings, and _wp_page_template.',
+  {
+    id: z.number().int().positive(),
+    postType: wpContentTypeSchema.default('page'),
+    elementorData: elementorDataSchema.optional(),
+    elementorEditMode: z.string().min(1).optional(),
+    elementorTemplateType: z.string().min(1).optional(),
+    elementorVersion: z.string().min(1).optional(),
+    elementorPageSettings: z.record(z.string(), z.any()).optional(),
+    wpPageTemplate: z.string().min(1).optional(),
+  },
+  async ({
+    id,
+    postType,
+    elementorData,
+    elementorEditMode,
+    elementorTemplateType,
+    elementorVersion,
+    elementorPageSettings,
+    wpPageTemplate,
+  }) => {
+    assertWritesAllowed();
+
+    const meta = removeUndefined({
+      _elementor_data: elementorData === undefined ? undefined : normalizeElementorData(elementorData),
+      _elementor_edit_mode: elementorEditMode,
+      _elementor_template_type: elementorTemplateType,
+      _elementor_version: elementorVersion,
+      _elementor_page_settings: elementorPageSettings,
+      _wp_page_template: wpPageTemplate,
+    });
+
+    const payload = removeUndefined({
+      meta: Object.keys(meta).length > 0 ? meta : undefined,
+      template: postType === 'page' ? wpPageTemplate : undefined,
+    });
+
+    assertPayloadNotEmpty(payload, 'wordpress_update_elementor_meta');
+
+    const item = await wpFetch(`/wp-json/wp/v2/${restBaseForContentType(postType)}/${id}?context=edit`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+
+    return jsonText({
+      id: item.id,
+      type: item.type,
+      status: item.status,
+      title: renderText(item.title),
+      slug: item.slug,
+      link: item.link,
+      template: item.template ?? '',
+      meta: pickElementorMeta(item.meta ?? {}),
+    });
+  }
+);
+
+server.tool(
+  'wordpress_list_elementor_routes',
+  'List Elementor REST API routes exposed by the configured WordPress site.',
+  {},
+  async () => {
+    const root = await wpFetch('/wp-json/');
+    const routes = Object.entries(root.routes ?? {})
+      .filter(([route]) => route.startsWith('/elementor/'))
+      .map(([route, definition]) => ({
+        route,
+        namespace: definition.namespace,
+        methods: [...new Set((definition.methods ?? []).flat())],
+      }));
+
+    return jsonText({
+      namespaces: (root.namespaces ?? []).filter((namespace) => namespace.startsWith('elementor')),
+      routes,
+    });
   }
 );
 
@@ -704,6 +809,25 @@ function isStagingUrl(value) {
 
 function removeUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+
+function restBaseForContentType(postType) {
+  return postType === 'page' ? 'pages' : 'posts';
+}
+
+function normalizeElementorData(value) {
+  return typeof value === 'string' ? value : JSON.stringify(value);
+}
+
+function pickElementorMeta(meta) {
+  return {
+    _elementor_data: meta._elementor_data,
+    _elementor_edit_mode: meta._elementor_edit_mode,
+    _elementor_template_type: meta._elementor_template_type,
+    _elementor_version: meta._elementor_version,
+    _elementor_page_settings: meta._elementor_page_settings,
+    _wp_page_template: meta._wp_page_template,
+  };
 }
 
 function normalizeRestPath(path) {

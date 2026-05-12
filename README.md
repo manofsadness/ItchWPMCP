@@ -59,9 +59,32 @@ It can be used with any WordPress site that has the REST API enabled and support
 - `wordpress_list_users`: list users if the authenticated user has permission.
 - `wordpress_list_menus`: list menus if the REST endpoint is available.
 - `wordpress_list_menu_items`: list menu items if the REST endpoint is available.
+- `wordpress_get_elementor_meta`: read Elementor-related meta and template fields for a page or post.
+- `wordpress_update_elementor_meta`: update `_elementor_data`, `_elementor_edit_mode`, `_elementor_template_type`, `_elementor_version`, `_elementor_page_settings`, and `_wp_page_template` for a page or post.
+- `wordpress_list_elementor_routes`: list Elementor REST API routes exposed by the configured WordPress site.
 - `wordpress_rest_request`: advanced REST API escape hatch.
 
 Write tools are enabled on staging URLs. If `WP_BASE_URL` is changed to production, writes are blocked unless `WP_ALLOW_PRODUCTION_WRITES=true` is set in `.env`.
+
+## Elementor Meta Tools
+
+Use `wordpress_update_elementor_meta` when you need to save Elementor layout data through WordPress REST. Pass `elementorData` as either a JSON string or a JSON object/array; the tool stores it as `_elementor_data`.
+
+Example:
+
+```json
+{
+  "id": 123,
+  "postType": "page",
+  "elementorEditMode": "builder",
+  "elementorTemplateType": "wp-page",
+  "elementorVersion": "3.30.0",
+  "wpPageTemplate": "elementor_canvas",
+  "elementorData": []
+}
+```
+
+The available Elementor REST endpoints depend on the target WordPress site and installed Elementor plugins. Use `wordpress_list_elementor_routes` to inspect what the configured site exposes.
 
 ## Use Another WordPress Site
 
