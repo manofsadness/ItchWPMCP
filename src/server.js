@@ -369,6 +369,61 @@ server.tool(
 );
 
 server.tool(
+  'wordpress_get_post_meta',
+  'Get registered WordPress REST meta for a page or post. Use keys to limit the returned meta fields.',
+  {
+    id: z.number().int().positive(),
+    postType: wpContentTypeSchema.default('page'),
+    keys: z.array(z.string().min(1)).optional(),
+  },
+  async ({ id, postType, keys }) => {
+    const item = await wpFetch(`/wp-json/wp/v2/${restBaseForContentType(postType)}/${id}?context=edit`);
+    const meta = item.meta ?? {};
+
+    return jsonText({
+      id: item.id,
+      type: item.type,
+      status: item.status,
+      title: renderText(item.title),
+      slug: item.slug,
+      link: item.link,
+      template: item.template ?? '',
+      meta: keys ? pickKeys(meta, keys) : meta,
+    });
+  }
+);
+
+server.tool(
+  'wordpress_update_post_meta',
+  'Update registered WordPress REST meta for a page or post. The target site must expose the meta keys in REST.',
+  {
+    id: z.number().int().positive(),
+    postType: wpContentTypeSchema.default('page'),
+    meta: z.record(z.string(), z.any()),
+  },
+  async ({ id, postType, meta }) => {
+    assertWritesAllowed();
+    assertPayloadNotEmpty(meta, 'wordpress_update_post_meta meta');
+
+    const item = await wpFetch(`/wp-json/wp/v2/${restBaseForContentType(postType)}/${id}?context=edit`, {
+      method: 'POST',
+      body: JSON.stringify({ meta }),
+    });
+
+    return jsonText({
+      id: item.id,
+      type: item.type,
+      status: item.status,
+      title: renderText(item.title),
+      slug: item.slug,
+      link: item.link,
+      template: item.template ?? '',
+      meta: pickKeys(item.meta ?? {}, Object.keys(meta)),
+    });
+  }
+);
+
+server.tool(
   'wordpress_update_elementor_meta',
   'Update Elementor post meta for a WordPress page or post. Supports _elementor_data, _elementor_edit_mode, _elementor_template_type, _elementor_version, _elementor_page_settings, and _wp_page_template.',
   {
@@ -422,6 +477,38 @@ server.tool(
       slug: item.slug,
       link: item.link,
       template: item.template ?? '',
+      meta: pickElementorMeta(item.meta ?? {}),
+    });
+  }
+);
+
+server.tool(
+  'wordpress_update_elementor_data',
+  'Update only _elementor_data for a WordPress page or post. Pass Elementor data as a JSON string, object, or array.',
+  {
+    id: z.number().int().positive(),
+    postType: wpContentTypeSchema.default('page'),
+    elementorData: elementorDataSchema,
+  },
+  async ({ id, postType, elementorData }) => {
+    assertWritesAllowed();
+
+    const item = await wpFetch(`/wp-json/wp/v2/${restBaseForContentType(postType)}/${id}?context=edit`, {
+      method: 'POST',
+      body: JSON.stringify({
+        meta: {
+          _elementor_data: normalizeElementorData(elementorData),
+        },
+      }),
+    });
+
+    return jsonText({
+      id: item.id,
+      type: item.type,
+      status: item.status,
+      title: renderText(item.title),
+      slug: item.slug,
+      link: item.link,
       meta: pickElementorMeta(item.meta ?? {}),
     });
   }
@@ -834,6 +921,10 @@ function isStagingUrl(value) {
 
 function removeUndefined(value) {
   return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
+}
+
+function pickKeys(value, keys) {
+  return Object.fromEntries(keys.map((key) => [key, value[key]]));
 }
 
 function restBaseForContentType(postType) {
