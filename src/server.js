@@ -449,6 +449,31 @@ server.tool(
 );
 
 server.tool(
+  'wordpress_elementor_rest_request',
+  'Advanced escape hatch for Elementor REST API calls only. Non-GET requests obey write guards.',
+  {
+    method: httpMethodSchema.default('GET'),
+    path: z.string().min(1),
+    body: z.record(z.string(), z.any()).optional(),
+    confirmDelete: z.boolean().default(false),
+  },
+  async ({ method, path, body, confirmDelete }) => {
+    const normalizedPath = normalizeElementorRestPath(path);
+    if (method !== 'GET') {
+      assertWritesAllowed();
+    }
+    if (method === 'DELETE') {
+      assertConfirmed(confirmDelete, 'wordpress_elementor_rest_request DELETE');
+    }
+
+    return jsonText(await wpFetch(normalizedPath, {
+      method,
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }));
+  }
+);
+
+server.tool(
   'wordpress_list_media',
   'List media library items.',
   {
@@ -835,6 +860,16 @@ function normalizeRestPath(path) {
 
   if (!normalized.startsWith('/wp-json/')) {
     throw new Error('REST path must start with /wp-json/.');
+  }
+
+  return normalized;
+}
+
+function normalizeElementorRestPath(path) {
+  const normalized = normalizeRestPath(path);
+
+  if (!/^\/wp-json\/elementor(?:-[a-z0-9]+)?\/v\d+\//i.test(normalized)) {
+    throw new Error('Elementor REST path must start with /wp-json/elementor*/vN/.');
   }
 
   return normalized;

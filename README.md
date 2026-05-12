@@ -62,6 +62,7 @@ It can be used with any WordPress site that has the REST API enabled and support
 - `wordpress_get_elementor_meta`: read Elementor-related meta and template fields for a page or post.
 - `wordpress_update_elementor_meta`: update `_elementor_data`, `_elementor_edit_mode`, `_elementor_template_type`, `_elementor_version`, `_elementor_page_settings`, and `_wp_page_template` for a page or post.
 - `wordpress_list_elementor_routes`: list Elementor REST API routes exposed by the configured WordPress site.
+- `wordpress_elementor_rest_request`: advanced REST API escape hatch limited to Elementor REST namespaces.
 - `wordpress_rest_request`: advanced REST API escape hatch.
 
 Write tools are enabled on staging URLs. If `WP_BASE_URL` is changed to production, writes are blocked unless `WP_ALLOW_PRODUCTION_WRITES=true` is set in `.env`.
@@ -84,7 +85,7 @@ Example:
 }
 ```
 
-The available Elementor REST endpoints depend on the target WordPress site and installed Elementor plugins. Use `wordpress_list_elementor_routes` to inspect what the configured site exposes.
+The available Elementor REST endpoints depend on the target WordPress site and installed Elementor plugins. Use `wordpress_list_elementor_routes` to inspect what the configured site exposes, then use `wordpress_elementor_rest_request` for site-specific Elementor endpoints.
 
 ## Use Another WordPress Site
 
